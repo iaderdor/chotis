@@ -32,6 +32,25 @@ class Database:
         )
         self.conn.commit()
 
+    def __create_distributions(self):
+        c = self.conn.cursor()
+        c.execute(
+            """
+        CREATE TABLE IF NOT EXISTS distributions (
+            id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+            dataset_id NOT NULL,
+            title TEXT NOT NULL,
+            byteSize INTEGER NOT NULL,
+            accessURL TEXT NOT NULL,
+            timestamp_created_at TEXT NOT NULL,
+            timestamp_updated_at TEXT NOT NULL,
+            FOREIGN KEY(dataset_id) REFERENCES datasets(id)
+        );
+        """
+        )
+
+        self.conn.commit()
+
     def __create_stations(self):
         c = self.conn.cursor()
         c.execute(
@@ -90,6 +109,7 @@ class Database:
 
     def initialize(self):
         self.__create_datasets()
+        self.__create_distributions()
         self.__create_stations()
         self.__create_counts()
         self.__create_daily_counts()
@@ -185,6 +205,144 @@ class Database:
         c.close()
 
         return self.get_dataset_by_name(dataset_name)
+
+    def add_distributions(self, distributions_list, dataset_id):
+        """Add a distribution to the distribution tables.
+
+        Parameters
+        ----------
+        distributions_list : `list` with `dict`
+            ``"title"``
+                title of the distribution
+            ``"byteSize"``
+                Size of the file to download of the distribution in bytes
+            ``"accessURL"``
+                URL where the distribution can be downloaded
+        dataset_id : int
+            id of the dataset where this distribution belongs
+
+        Returns
+        -------
+        `list` with `dict`
+            ``"id"``
+                ID of the distribution
+            ``"dataset_id"``
+                id of the dataset where this distribution belongs
+            ``"title"``
+                title of the distribution
+            ``"byteSize"``
+                Size of the file to download of the distribution in bytes
+            ``"accessURL"``
+                URL where the distribution can be downloaded
+           ``"created_at"``
+                When the distribution was added to the database
+            ``"updated_at"``
+                When the distribution was last updated in the database
+
+        """
+
+        if type(distributions_list) == dict:
+            distributions_list = [distributions_list]
+
+        distributions_tuple_list = []
+        timestamp = datetime.datetime.now()
+
+        for idx, distribution in enumerate(distributions_list):
+            if not dataset_id:
+                raise Exception(
+                    'dataset_id is empty'
+                )
+            if not distribution["title"]:
+                raise Exception(
+                    'title in distribution item {} is empty'.format(idx)
+                )
+
+            if not distribution["byteSize"]:
+                raise Exception(
+                    'byteSize in distribution item {} is empty'.format(idx)
+                )
+
+            if not distribution["accessURL"]:
+                raise Exception(
+                    'accessURL in distribution item {} is empty'.format(idx)
+                )
+
+            distribution["byteSize"] = int(distribution["byteSize"])
+            distribution["created_at"] = timestamp
+            distribution["updated_at"] = timestamp
+
+            distributions_tuple_list.append(
+                tuple((
+                    int(dataset_id),
+                    distribution["title"],
+                    distribution["byteSize"],
+                    distribution["accessURL"],
+                    str(distribution["created_at"]),
+                    str(distribution["updated_at"])
+                ))
+            )
+
+        c = self.conn.cursor()
+        query = """
+        INSERT INTO distributions(dataset_id, title, byteSize, accessURL, timestamp_created_at, timestamp_updated_at) VALUES(?,?,?,?,?,?);
+        """
+        c.executemany(query, distributions_tuple_list)
+        self.conn.commit()
+        c.close()
+
+        return distributions_list
+
+    def get_distributions_by_dataset_name(self, dataset_name):
+        """Given a dataset_name, returns all its distributions
+
+        Parameters
+        ----------
+        dataset_name : str
+
+        Returns
+        -------
+        `list` with `dict`
+            ``"id"``
+                ID of the distribution
+            ``"dataset_id"``
+                id of the dataset where this distribution belongs
+            ``"title"``
+                title of the distribution
+            ``"byteSize"``
+                Size of the file to download of the distribution in bytes
+            ``"accessURL"``
+                URL where the distribution can be downloaded
+           ``"created_at"``
+                When the distribution was added to the database
+            ``"updated_at"``
+                When the distribution was last updated in the database
+        """
+        c = self.conn.cursor()
+        query = """
+            SELECT dis.*
+            FROM distributions as dis
+            INNER JOIN datasets as dat
+            ON dis.dataset_id = dat.id
+            WHERE dat.name LIKE ?;"""
+        c.execute(query, [dataset_name])
+
+        distributions = c.fetchall()
+
+        result = []
+
+        if not isinstance(distributions, type(None)):
+            for idx, distribution in enumerate(distributions):
+                result.append({})
+                result[idx]["id"] = distribution[0]
+                result[idx]["dataset_id"] = distribution[1]
+                result[idx]["title"] = distribution[2]
+                result[idx]["byteSize"] = distribution[3]
+                result[idx]["accessURL"] = distribution[4]
+                result[idx]["created_at"] = distribution[5]
+                result[idx]["updated_at"] = distribution[6]
+        c.close()
+
+        return result
 
     def add_stations(self, stations_list):
         """Given a list with stations data, adds them to the database
