@@ -321,3 +321,90 @@ class Database:
         c.close()
 
         return result
+
+    def add_car_counts(self, car_counts_list):
+        """Given a list with car count data, adds them to the database
+
+        Parameters
+        ----------
+        stations : `list` with `dict` or a `dict`
+            ``"station_id"``
+                id of the station which has counted the car
+            ``"datetime"``
+                datetime.datetime with info about the time and date of when
+                measure was done
+            ``"intensity"``
+                Number of cars measured
+
+        Returns
+        -------
+        stations : `list` with `dict`
+            ``"id"``
+                id of the count
+            ``"type"``
+                type of the count (car, bicycle or pedestrian)
+            ``"station_id"`
+                id of the station which has counted the car
+            ``"datetime"``
+                datetime.datetime with info about the time and date of when
+                measure was done
+            ``"intensity"``
+                Number of cars measured
+            ``"created_at"``
+                When the station was added to the database
+            ``"updated_at"``
+                When the station was last updated in the database
+
+        """
+
+        if type(car_counts_list) == dict:
+            car_counts_list = [car_counts_list]
+
+        car_counts_tuple_list = []
+        timestamp = datetime.datetime.now()
+
+        for idx, car_count in enumerate(car_counts_list):
+            if not car_count["station_id"]:
+                raise Exception(
+                    'station_id in car_count item {} is empty'.format(idx)
+                )
+
+            if not car_count["datetime"]:
+                raise Exception(
+                    'datetime in car_count item {} is empty'.format(idx)
+                )
+            if not isinstance(car_count["datetime"], datetime.datetime):
+                raise Exception(
+                    'datetime in car_count item {} is not an instance of datetime.datetime'.format(
+                        idx)
+                )
+
+            if not car_count["intensity"]:
+                car_count["intensity"] = 0
+
+            car_count["type"] = 1
+            car_count["station_id"] = int(car_count["station_id"])
+            car_count["datetime"] = str(car_count["datetime"])
+            car_count["created_at"] = timestamp
+            car_count["updated_at"] = timestamp
+
+            car_counts_tuple_list.append(
+                tuple((
+                    car_count["type"],
+                    car_count["station_id"],
+                    car_count["datetime"],
+                    car_count["intensity"],
+                    car_count["created_at"],
+                    car_count["updated_at"]
+                ))
+            )
+
+        c = self.conn.cursor()
+        query = """
+        INSERT INTO counts(type, station_id, datetime, intensity, timestamp_created_at, timestamp_updated_at) VALUES(?,?,?,?,?,?);
+        """
+        c.executemany(query, car_counts_tuple_list)
+        self.conn.commit()
+        c.close()
+
+        return car_counts_list
