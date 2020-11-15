@@ -1,4 +1,4 @@
-# IMDmad
+# Chotis
 
 Download and play with the data of the traffic of Madrid!
 
